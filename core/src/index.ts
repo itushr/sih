@@ -1,3 +1,5 @@
+import "dotenv/config"
+
 import express, {
     type NextFunction,
     type Request,
@@ -5,6 +7,10 @@ import express, {
 } from "express";
 import cors from "cors";
 import helmet from "helmet";
+
+import pool from "./config/database.js";
+import authRoutes from "./routes/auth.route.js";
+import cookieParser from "cookie-parser";
 
 
 //config
@@ -29,6 +35,11 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+app.use(cookieParser());
+
+
+//routes
+app.use("/api/auth", authRoutes);
 
 
 //health check
@@ -75,9 +86,9 @@ app.use(
 
 
 //start server
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
     console.log(`
-    >> INITIALIZING...
+    >> INITIALIZING INTEROP CORE...
 
      ██████╗ ██████╗ ██████╗ ███████╗
     ██╔════╝██╔═══██╗██╔══██╗██╔════╝
@@ -86,27 +97,44 @@ const server = app.listen(PORT, () => {
     ╚██████╗╚██████╔╝██║  ██║███████╗
      ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
 
-    >> INTEROP CORE IS LIVE
+    >> INTEROP CORE IS LIVE!
 
     >> ENV  :: ${isProduction ? "PRODUCTION" : "DEVELOPMENT"}
     >> PORT :: ${PORT}
     >> URL  :: http://localhost:${PORT}
-    \n
+
+    >> TESTING DATABASE CONNECTION...`
+    );
+
+    const result = await pool.query(`
+    SELECT
+    inet_server_addr() AS host,
+    inet_server_port() AS port,
+    NOW() AS connected_at
 `);
+
+    const { host, port, connected_at } = result.rows[0];
+
+    console.log(`
+    >> DATABASE CONNECTION SUCCESSFULL!\n
+    >> HOST :: ${host}
+    >> PORT :: ${port}
+    >> TIME :: ${connected_at}
+    `)
 });
 
 
 //graceful shutdown
 const shutdown = (signal: string) => {
-    console.log(`${signal} received. Shutting down...`);
+    console.log(`    >> ${signal} RECIEVED`);
 
     server.close(() => {
-        console.log("HTTP server closed.");
+        console.log(`    >> INTEROP CORE TERMINATED!`);
         process.exit(0);
     });
 
     setTimeout(() => {
-        console.error("Forced shutdown.");
+        console.error(`    >> INTEROP CORE SHURDOWN --FORCE`);
         process.exit(1);
     }, 10_000).unref();
 };
