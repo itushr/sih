@@ -9,8 +9,10 @@ import cors from "cors";
 import helmet from "helmet";
 
 import pool from "./config/database.js";
-import authRoutes from "./routes/auth.route.js";
 import cookieParser from "cookie-parser";
+
+import authRoutes from "./routes/auth.route.js";
+import eventsRoutes from "./routes/events.route.js"
 
 
 //config
@@ -40,6 +42,7 @@ app.use(cookieParser());
 
 //routes
 app.use("/api/auth", authRoutes);
+app.use("/api/events", eventsRoutes);
 
 
 //health check
