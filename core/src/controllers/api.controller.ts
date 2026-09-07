@@ -1,12 +1,22 @@
 import type { Request, Response } from "express";
+
 import pool from "../config/database.js";
 
-const PATH_TYPES = [
-    "JSONPath",
-    "XPath",
-    "Protobuf Field Index",
-    "Plain/Key-Value",
-];
+import {
+    isObject,
+    isStringArray,
+    validateApiFields,
+    validateRequiredString,
+} from "../utils/validation.js";
+
+type ApiField = {
+    alias: string;
+    description?: string;
+    canonicalFieldId: string;
+    pathType: string;
+    extractionPath: string;
+    transformers?: string[];
+};
 
 export const registerApi = async (
     req: Request,
@@ -27,301 +37,363 @@ export const registerApi = async (
 
         const platformId = req.platformId;
 
+        // --------------------------------
+        // AUTHENTICATION
+        // --------------------------------
+
         if (!platformId) {
             return res.status(401).json({
                 error: "Unauthorized",
             });
         }
 
-        //api validation
+        // --------------------------------
+        // API VALIDATION
+        // --------------------------------
 
-        if (
-            typeof alias !== "string" ||
-            !alias.trim()
-        ) {
+        const aliasError =
+            validateRequiredString(
+                alias,
+                "API alias"
+            );
+
+        if (aliasError) {
             return res.status(400).json({
-                error: "API alias is required",
+                error: aliasError,
             });
         }
 
-        if (
-            typeof protocol !== "string" ||
-            !protocol.trim()
-        ) {
+        const protocolError =
+            validateRequiredString(
+                protocol,
+                "Protocol"
+            );
+
+        if (protocolError) {
             return res.status(400).json({
-                error: "Protocol is required",
+                error: protocolError,
             });
         }
 
-        if (
-            typeof endpointUrl !== "string" ||
-            !endpointUrl.trim()
-        ) {
+        const endpointUrlError =
+            validateRequiredString(
+                endpointUrl,
+                "Endpoint URL"
+            );
+
+        if (endpointUrlError) {
             return res.status(400).json({
-                error: "Endpoint URL is required",
+                error: endpointUrlError,
             });
         }
+
+        // --------------------------------
+        // PROTOCOL CONFIG VALIDATION
+        // --------------------------------
 
         if (
             protocolConfig !== undefined &&
-            (
-                typeof protocolConfig !== "object" ||
-                protocolConfig === null ||
-                Array.isArray(protocolConfig)
-            )
+            !isObject(protocolConfig)
         ) {
             return res.status(400).json({
-                error: "Protocol config must be an object",
+                error:
+                    "Protocol config must be an object",
             });
         }
 
-        //input validation
+        // --------------------------------
+        // INPUT VALIDATION
+        // --------------------------------
 
         if (
             customInputs !== undefined &&
-            !Array.isArray(customInputs)
+            !isStringArray(customInputs)
         ) {
             return res.status(400).json({
-                error: "Custom inputs must be an array",
+                error:
+                    "Custom inputs must be an array of strings",
             });
         }
 
         if (
             canonicalInputs !== undefined &&
-            !Array.isArray(canonicalInputs)
+            !isStringArray(canonicalInputs)
         ) {
             return res.status(400).json({
-                error: "Canonical inputs must be an array",
+                error:
+                    "Canonical inputs must be an array of strings",
             });
         }
 
-        //field validation
+        // --------------------------------
+        // FIELD VALIDATION
+        // --------------------------------
 
-        if (
-            fields !== undefined &&
-            !Array.isArray(fields)
-        ) {
+        const fieldsError =
+            validateApiFields(fields);
+
+        if (fieldsError) {
             return res.status(400).json({
-                error: "Fields must be an array",
+                error: fieldsError,
             });
         }
 
-        for (const field of fields || []) {
-            if (
-                typeof field !== "object" ||
-                field === null ||
-                Array.isArray(field)
-            ) {
-                return res.status(400).json({
-                    error: "Each field must be an object",
-                });
-            }
+        const apiFields =
+            fields as ApiField[];
 
-            if (
-                typeof field.alias !== "string" ||
-                !field.alias.trim()
-            ) {
-                return res.status(400).json({
-                    error: "Field alias is required",
-                });
-            }
-
-            if (
-                field.description !== undefined &&
-                typeof field.description !== "string"
-            ) {
-                return res.status(400).json({
-                    error: "Field description must be a string",
-                });
-            }
-
-            if (
-                typeof field.canonicalFieldId !== "string" ||
-                !field.canonicalFieldId.trim()
-            ) {
-                return res.status(400).json({
-                    error: "Canonical field ID is required",
-                });
-            }
-
-            if (
-                typeof field.pathType !== "string" ||
-                !PATH_TYPES.includes(field.pathType)
-            ) {
-                return res.status(400).json({
-                    error: `Invalid path type. Allowed values: ${PATH_TYPES.join(", ")}`,
-                });
-            }
-
-            if (
-                typeof field.extractionPath !== "string" ||
-                !field.extractionPath.trim()
-            ) {
-                return res.status(400).json({
-                    error: "Extraction path is required",
-                });
-            }
-
-            if (
-                field.transformers !== undefined &&
-                !Array.isArray(field.transformers)
-            ) {
-                return res.status(400).json({
-                    error: "Transformers must be an array",
-                });
-            }
-
-            if (field.transformers) {
-                for (const transformerId of field.transformers) {
-                    if (
-                        typeof transformerId !== "string" ||
-                        !transformerId.trim()
-                    ) {
-                        return res.status(400).json({
-                            error: "Each transformer ID must be a string",
-                        });
-                    }
-                }
-            }
-        }
-
+        // --------------------------------
+        // DATABASE TRANSACTION
+        // --------------------------------
 
         await client.query("BEGIN");
 
-        //cononical field validation
+        // --------------------------------
+        // VALIDATE CANONICAL FIELDS
+        // --------------------------------
 
-        for (const field of fields || []) {
-            const canonicalFieldResult = await client.query(
-                `SELECT id
-                 FROM canonical_fields
-                 WHERE id = $1`,
-                [field.canonicalFieldId]
+        const canonicalFieldIds =
+            apiFields.map(
+                (field) =>
+                    field.canonicalFieldId
             );
 
-            if (canonicalFieldResult.rows.length === 0) {
-                await client.query("ROLLBACK");
+        if (
+            canonicalFieldIds.length > 0
+        ) {
+            const canonicalResult =
+                await client.query(
+                    `SELECT id
+                     FROM canonical_fields
+                     WHERE id = ANY($1::uuid[])`,
+                    [canonicalFieldIds]
+                );
+
+            const existingCanonicalIds =
+                new Set(
+                    canonicalResult.rows.map(
+                        (row) => row.id
+                    )
+                );
+
+            const missingCanonicalFields =
+                [
+                    ...new Set(
+                        canonicalFieldIds.filter(
+                            (id) =>
+                                !existingCanonicalIds.has(
+                                    id
+                                )
+                        )
+                    ),
+                ];
+
+            if (
+                missingCanonicalFields.length >
+                0
+            ) {
+                await client.query(
+                    "ROLLBACK"
+                );
 
                 return res.status(404).json({
-                    error: `Canonical field not found: ${field.canonicalFieldId}`,
+                    error:
+                        "One or more canonical fields were not found",
+                    missingCanonicalFields,
                 });
             }
         }
 
-        //transformer validation
+        // --------------------------------
+        // VALIDATE TRANSFORMERS
+        // --------------------------------
 
-        for (const field of fields || []) {
-            for (const transformerId of field.transformers || []) {
-                const transformerResult = await client.query(
+        const transformerIds = [
+            ...new Set(
+                apiFields.flatMap(
+                    (field) =>
+                        field.transformers || []
+                )
+            ),
+        ];
+
+        if (
+            transformerIds.length > 0
+        ) {
+            const transformerResult =
+                await client.query(
                     `SELECT id
                      FROM transformer_functions
-                     WHERE id = $1`,
-                    [transformerId]
+                     WHERE id = ANY($1::uuid[])`,
+                    [transformerIds]
                 );
 
-                if (transformerResult.rows.length === 0) {
-                    await client.query("ROLLBACK");
+            const existingTransformerIds =
+                new Set(
+                    transformerResult.rows.map(
+                        (row) => row.id
+                    )
+                );
 
-                    return res.status(404).json({
-                        error: `Transformer not found: ${transformerId}`,
-                    });
-                }
+            const missingTransformers =
+                transformerIds.filter(
+                    (id) =>
+                        !existingTransformerIds.has(
+                            id
+                        )
+                );
+
+            if (
+                missingTransformers.length > 0
+            ) {
+                await client.query(
+                    "ROLLBACK"
+                );
+
+                return res.status(404).json({
+                    error:
+                        "One or more transformers were not found",
+                    missingTransformers,
+                });
             }
         }
 
-        //register API
+        // --------------------------------
+        // REGISTER API
+        // --------------------------------
 
-        const apiResult = await client.query(
-            `INSERT INTO api_endpoints (
-                platform,
-                alias,
-                protocol,
-                endpoint_url,
-                protocol_config,
-                custom_inputs,
-                canonical_inputs
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING
-                id,
-                platform,
-                alias,
-                protocol,
-                endpoint_url,
-                protocol_config,
-                custom_inputs,
-                canonical_inputs,
-                created_at,
-                updated_at`,
-            [
-                platformId,
-                alias.trim(),
-                protocol.trim(),
-                endpointUrl.trim(),
-                protocolConfig || {},
-                customInputs || [],
-                canonicalInputs || [],
-            ]
-        );
-
-        const api = apiResult.rows[0];
-
-        // register data fields
-
-        const registeredFields = [];
-
-        for (const field of fields || []) {
-            const fieldResult = await client.query(
-                `INSERT INTO data_field_registry (
+        const apiResult =
+            await client.query(
+                `INSERT INTO api_endpoints (
+                    platform,
                     alias,
-                    description,
-                    api_id,
-                    canonical_field_id,
-                    path_type,
-                    extraction_path,
-                    transformers
+                    protocol,
+                    endpoint_url,
+                    protocol_config,
+                    custom_inputs,
+                    canonical_inputs
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7
+                )
                 RETURNING
                     id,
+                    platform,
                     alias,
-                    description,
-                    api_id,
-                    canonical_field_id,
-                    path_type,
-                    extraction_path,
-                    transformers,
+                    protocol,
+                    endpoint_url,
+                    protocol_config,
+                    custom_inputs,
+                    canonical_inputs,
                     created_at,
                     updated_at`,
                 [
-                    field.alias.trim(),
-                    field.description?.trim() || null,
-                    api.id,
-                    field.canonicalFieldId,
-                    field.pathType,
-                    field.extractionPath.trim(),
-                    field.transformers || [],
+                    platformId,
+                    alias.trim(),
+                    protocol.trim(),
+                    endpointUrl.trim(),
+                    protocolConfig || {},
+                    customInputs || [],
+                    canonicalInputs || [],
                 ]
             );
 
-            registeredFields.push(fieldResult.rows[0]);
+        const api =
+            apiResult.rows[0];
+
+        // --------------------------------
+        // REGISTER DATA FIELDS
+        // --------------------------------
+
+        const registeredFields = [];
+
+        for (const field of apiFields) {
+            const fieldResult =
+                await client.query(
+                    `INSERT INTO data_field_registry (
+                        alias,
+                        description,
+                        api_id,
+                        canonical_field_id,
+                        path_type,
+                        extraction_path,
+                        transformers
+                    )
+                    VALUES (
+                        $1,
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        $7
+                    )
+                    RETURNING
+                        id,
+                        alias,
+                        description,
+                        api_id,
+                        canonical_field_id,
+                        path_type,
+                        extraction_path,
+                        transformers,
+                        created_at,
+                        updated_at`,
+                    [
+                        field.alias.trim(),
+                        field.description?.trim() ||
+                            null,
+                        api.id,
+                        field.canonicalFieldId,
+                        field.pathType,
+                        field.extractionPath.trim(),
+                        field.transformers || [],
+                    ]
+                );
+
+            registeredFields.push(
+                fieldResult.rows[0]
+            );
         }
+
+        // --------------------------------
+        // COMMIT
+        // --------------------------------
 
         await client.query("COMMIT");
 
+        // --------------------------------
+        // RESPONSE
+        // --------------------------------
+
         return res.status(201).json({
-            message: "API registered successfully",
+            message:
+                "API registered successfully",
             data: {
                 ...api,
                 fields: registeredFields,
             },
         });
     } catch (error) {
+        // --------------------------------
+        // ROLLBACK
+        // --------------------------------
+
         await client.query("ROLLBACK");
 
-        console.error("Register API error:", error);
+        console.error(
+            "Register API error:",
+            error
+        );
 
         return res.status(500).json({
-            error: "Internal server error",
+            error:
+                "Internal server error",
         });
     } finally {
         client.release();
