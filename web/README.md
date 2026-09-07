@@ -1,3 +1,27 @@
+## Frontend structure
+
+This package is a React/Vite frontend for the GovInterop citizen and authority experiences. It currently uses local mock data so the UI can be completed before the MERN backend is recreated.
+
+```text
+src/
+  app/
+    AppRoutes.jsx                 # Browser routes and route-to-page mapping
+  administration/
+    Home.jsx                      # Small administration route composition layer
+  features/
+    administration/
+      components/                 # Shared admin UI primitives
+      data/                       # Frontend-only mock data
+      layout/                     # Persistent authority shell and navigation
+      pages/                      # Dashboard, registry, policy, and operations pages
+    citizen/
+      ...                         # Citizen surface remains isolated from authority UI
+  citizen/
+    Home.jsx                      # Existing citizen workspace entry
+  App.jsx                         # App entry point
+```
+
+The administration feature is deliberately split by responsibility. When the MERN API is added later, replace the mock data modules with query/service modules without changing the layout or route structure.
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
