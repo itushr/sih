@@ -14,6 +14,7 @@ import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.route.js";
 import eventsRoutes from "./routes/events.route.js"
 import standardizationRoutes from "./routes/standardization.route.js";
+import apiRoutes from "./routes/api.route.js";
 
 
 //config
@@ -45,6 +46,7 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/standardization", standardizationRoutes);
+app.use("/api/api", apiRoutes);
 
 
 //health check
