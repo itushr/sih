@@ -2,7 +2,7 @@
   "name": "interop",
   "private": true,
   "scripts": {
-    "install": "npm install --prefix web && npm install --prefix mob",
-    "dev": "npm run dev --prefix web"
+    "install": "npm install --prefix core && npm install --prefix web",
+    "dev": "npm run dev --prefix core & npm run dev --prefix web"
   }
 }
