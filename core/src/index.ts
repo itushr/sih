@@ -15,6 +15,7 @@ import authRoutes from "./routes/auth.route.js";
 import eventsRoutes from "./routes/events.route.js"
 import standardizationRoutes from "./routes/standardization.route.js";
 import apiRoutes from "./routes/api.route.js";
+import notificationRoutes from "./routes/notification.route.js";
 
 
 //config
@@ -47,6 +48,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/standardization", standardizationRoutes);
 app.use("/api/api", apiRoutes);
+app.use("/api/notification", notificationRoutes);
 
 
 //health check
