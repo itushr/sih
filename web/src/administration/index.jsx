@@ -5,6 +5,8 @@ import { EndpointDetailPage, RegisterEndpointPage, RegistryPage } from "./pages/
 import { PoliciesPage, PolicyCreatePage } from "./pages/PolicyPages.jsx";
 import { EventCreatePage, EventDetailPage, EventsPage, LogDetailPage, LogsPage, OrchestrationCreatePage, OrchestrationsPage, SubscriptionCreatePage, SubscriptionDetailPage, SubscriptionsPage } from "./pages/OperationsPages.jsx";
 
+import WorkflowListPage from "./pages/workflow/WorkflowListPage.jsx";
+
 const pageComponents = {
   overview: DashboardPage,
   registry: RegistryPage,
@@ -20,7 +22,8 @@ const pageComponents = {
   subscriptions: SubscriptionsPage,
   "subscription-create": SubscriptionCreatePage,
   "subscription-detail": SubscriptionDetailPage,
-  orchestrations: OrchestrationsPage,
+  workflows: WorkflowListPage,
+  orchestrations: WorkflowListPage,
   "orchestration-create": OrchestrationCreatePage,
 };
 

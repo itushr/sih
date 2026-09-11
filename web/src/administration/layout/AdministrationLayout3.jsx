@@ -218,7 +218,7 @@ export default function AdministrationLayout3({ page = "workflows", children }) 
                             <button
                                 className="solid-button compact"
                                 type="button"
-                                onClick={() => navigate("/administration/orchestrations")}
+                                onClick={() => navigate("/administration/workflows/new")}
                             >
                                 ＋ New workflow
                             </button>

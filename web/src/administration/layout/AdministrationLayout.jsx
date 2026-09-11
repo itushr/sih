@@ -51,7 +51,7 @@ export default function AdministrationLayout({ page = "overview", children }) {
           {adminNavigation.map(([id, label, number, icon, path]) => (
             <NavLink
               className={({ isActive }) =>
-                `admin-link ${isActive || (page === "overview" && id === "overview") ? "active" : ""}`
+                `admin-link ${isActive || (page === "overview" && id === "overview") || (page === "workflows" && id === "workflows") ? "active" : ""}`
               }
               key={id}
               to={path}
@@ -226,7 +226,7 @@ export default function AdministrationLayout({ page = "overview", children }) {
               <button
                 className="solid-button compact"
                 type="button"
-                onClick={() => navigate("/administration/orchestrations")}
+                onClick={() => navigate("/administration/workflows/new")}
               >
                 ＋ New workflow
               </button>

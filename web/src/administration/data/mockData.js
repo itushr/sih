@@ -6,7 +6,7 @@ export const adminNavigation = [
   ["logs",          "Errors & Logs",   "04", "◉", "/administration/errors-logs"],
   ["events",        "Event Registry",  "05", "⌘", "/administration/event-registry"],
   ["subscriptions", "Subscriptions",   "06", "▤", "/administration/subscriptions"],
-  ["orchestrations", "Orchestrations", "07", "⌗", "/administration/orchestrations"],
+  ["workflows",     "Workflows",       "07", "⌗", "/administration/workflows"],
 ];
 
 export const pageDetails = {
@@ -26,8 +26,10 @@ export const pageDetails = {
   subscriptions:         ["Subscriptions",       "Delivery channels"],
   "subscription-create": ["Subscriptions / Create", "Create subscription"],
   "subscription-detail": ["Subscriptions / Delivery", "Subscription detail"],
-  orchestrations:        ["Orchestrations",      "Workflow control room"],
-  "orchestration-create":["Orchestrations / Create", "Create workflow"],
+  workflows:             ["Workflows",           "Workflow control room"],
+  "workflow-create":     ["Workflows / Create",  "Create workflow"],
+  orchestrations:        ["Workflows",           "Workflow control room"],
+  "orchestration-create":["Workflows / Create",  "Create workflow"],
 };
 
 // ─── Dashboard KPIs ─────────────────────────────────────────────

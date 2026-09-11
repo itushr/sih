@@ -24,8 +24,8 @@ export default function AppRoutes() {
     <Route path="/administration/subscriptions" element={<Administration page="subscriptions" />} />
     <Route path="/administration/subscriptions/new" element={<Administration page="subscription-create" />} />
     <Route path="/administration/subscriptions/:subscriptionId" element={<Administration page="subscription-detail" />} />
-    <Route path="/administration/orchestrations" element={<Administration page="orchestrations" />} />
-    <Route path="/administration/orchestrations/new" element={<Administration page="orchestration-create" />} />
+    <Route path="/administration/orchestrations" element={<Navigate to="/administration/workflows" replace />} />
+    <Route path="/administration/orchestrations/new" element={<Navigate to="/administration/workflows/new" replace />} />
     <Route path="/administration/apis/register" element={<ApiRegistration />} />
     <Route path="/administration/workflows" element={<WorkflowListPage />} />
     <Route path="/administration/workflows/new" element={<WorkflowCanvas />} />
