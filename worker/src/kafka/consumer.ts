@@ -59,7 +59,7 @@ export async function startConsumer() {
             }
 
             console.log(
-                `Received workflow ${workflowId}`
+                `Received workflow run ${workflowId}`
             );
 
             await executeWorkflow(

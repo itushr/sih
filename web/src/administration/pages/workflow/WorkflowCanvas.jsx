@@ -277,12 +277,6 @@ function WorkflowCanvas() {
         try {
             const saved = await persist({ stay: true })
 
-            if (saved && isNew) {
-                navigate(`/administration/workflows/${saved.id}`, {
-                    replace: true,
-                })
-            }
-
             if (!saved) {
                 return
             }
@@ -299,6 +293,12 @@ function WorkflowCanvas() {
             const runningWorkflow = await runWorkflow(saved.id, data)
             setRunOpen(false)
             setStatus(`Run started: ${runningWorkflow.id}`)
+
+            if (isNew) {
+                navigate(`/administration/workflows/${saved.id}`, {
+                    replace: true,
+                })
+            }
         } catch (cause) {
             setError(cause.message)
         } finally {

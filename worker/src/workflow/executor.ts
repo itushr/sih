@@ -21,20 +21,22 @@ const WAITING_STATUSES = new Set([
 ]);
 
 export async function executeWorkflow(
-    workflowId: string
+    runningWorkflowId: string
 ): Promise<void> {
     let workflow =
-        await getRunningWorkflow(workflowId);
+        await getRunningWorkflow(runningWorkflowId);
 
     if (!workflow) {
-        throw new Error(
-            `Workflow ${workflowId} not found`
+        console.warn(
+            `[worker] Workflow run ${runningWorkflowId} not found in database (may be deleted or from a previous test). Skipping.`
         );
+
+        return;
     }
 
     if (WAITING_STATUSES.has(workflow.status)) {
         console.log(
-            `Workflow ${workflowId} is ${workflow.status}.`
+            `Workflow run ${runningWorkflowId} is ${workflow.status}.`
         );
 
         return;
@@ -162,7 +164,7 @@ export async function executeWorkflow(
 
         if (!workflow) {
             throw new Error(
-                `Workflow ${workflowId} disappeared`
+                `Workflow run ${runningWorkflowId} disappeared`
             );
         }
 

@@ -101,6 +101,21 @@ export async function ensureWorkflowTables(): Promise<void> {
     `);
 
     await pool.query(`
+        ALTER TABLE running_workflow_registry
+            ALTER COLUMN start DROP NOT NULL
+    `).catch(() => {});
+
+    await pool.query(`
+        ALTER TABLE running_workflow_registry DROP CONSTRAINT IF EXISTS running_workflow_registry_start_fkey;
+        ALTER TABLE running_workflow_registry ADD CONSTRAINT running_workflow_registry_start_fkey
+            FOREIGN KEY (start) REFERENCES workflow_node_registry(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
+
+        ALTER TABLE running_workflow_registry DROP CONSTRAINT IF EXISTS running_workflow_registry_current_fkey;
+        ALTER TABLE running_workflow_registry ADD CONSTRAINT running_workflow_registry_current_fkey
+            FOREIGN KEY (current) REFERENCES workflow_node_registry(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
+    `).catch(() => {});
+
+    await pool.query(`
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'workflow_run_status') THEN

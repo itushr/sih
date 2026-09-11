@@ -186,11 +186,22 @@ export async function replaceWorkflowNodes(
     workflowId: string,
     nodes: WorkflowNodeInput[]
 ): Promise<void> {
-    await client.query(
-        `DELETE FROM workflow_node_registry
-         WHERE workflow = $1`,
-        [workflowId]
-    );
+    const nodeIds = nodes.map((n) => n.id);
+
+    if (nodeIds.length > 0) {
+        await client.query(
+            `DELETE FROM workflow_node_registry
+             WHERE workflow = $1
+               AND NOT (id = ANY($2::uuid[]))`,
+            [workflowId, nodeIds]
+        );
+    } else {
+        await client.query(
+            `DELETE FROM workflow_node_registry
+             WHERE workflow = $1`,
+            [workflowId]
+        );
+    }
 
     for (const node of nodes) {
         await client.query(
@@ -202,7 +213,11 @@ export async function replaceWorkflowNodes(
                 on_success,
                 on_error
             )
-            VALUES ($1, $2, $3, $4, NULL, NULL)`,
+            VALUES ($1, $2, $3, $4, NULL, NULL)
+            ON CONFLICT (id) DO UPDATE SET
+                type = EXCLUDED.type,
+                payload = EXCLUDED.payload,
+                workflow = EXCLUDED.workflow`,
             [
                 node.id,
                 workflowId,
@@ -213,18 +228,16 @@ export async function replaceWorkflowNodes(
     }
 
     for (const node of nodes) {
-        if (node.on_success || node.on_error) {
-            await client.query(
-                `UPDATE workflow_node_registry
-                 SET on_success = $2, on_error = $3
-                 WHERE id = $1`,
-                [
-                    node.id,
-                    node.on_success ?? null,
-                    node.on_error ?? null,
-                ]
-            );
-        }
+        await client.query(
+            `UPDATE workflow_node_registry
+             SET on_success = $2, on_error = $3
+             WHERE id = $1`,
+            [
+                node.id,
+                node.on_success ?? null,
+                node.on_error ?? null,
+            ]
+        );
     }
 }
 
