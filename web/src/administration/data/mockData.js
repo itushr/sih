@@ -27,6 +27,7 @@ export const pageDetails = {
   "subscription-detail": ["Subscriptions / Delivery", "Subscription detail"],
   orchestrations: ["Orchestrations", "Workflow control room"],
   "orchestration-create": ["Orchestrations / Create", "Create workflow"],
+  workflows: ["Workflows", "Design and run workflows"],
 };
 
 export const dashboardMetrics = [["Active services", "24", "+3 this month", "teal"], ["Pending applications", "186", "12 need review", "blue"], ["Consent grants today", "1,284", "+8.4% vs yesterday", "amber"], ["Error rate", "0.18%", "Within target", "coral"]];

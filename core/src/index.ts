@@ -16,6 +16,8 @@ import eventsRoutes from "./routes/events.route.js"
 import standardizationRoutes from "./routes/standardization.route.js";
 import apiRoutes from "./routes/api.route.js";
 import notificationRoutes from "./routes/notification.route.js";
+import workflowRoutes from "./routes/workflow.route.js";
+import { readyWorkflowStore } from "./workflow/service.js";
 
 
 //config
@@ -49,6 +51,7 @@ app.use("/api/events", eventsRoutes);
 app.use("/api/standardization", standardizationRoutes);
 app.use("/api/api", apiRoutes);
 app.use("/api/notification", notificationRoutes);
+app.use("/api/workflows", workflowRoutes);
 
 
 //health check
@@ -114,6 +117,8 @@ const server = app.listen(PORT, async () => {
 
     >> TESTING DATABASE CONNECTION...`
     );
+
+    await readyWorkflowStore();
 
     const result = await pool.query(`
     SELECT

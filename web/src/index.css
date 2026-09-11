@@ -2533,6 +2533,10 @@ button, input, select, textarea {
   background: #fff;
 }
 
+.workflow-card-top {
+  display: flow-root;
+}
+
 .event-mark,
 .workflow-icon {
   display: grid;

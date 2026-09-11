@@ -3,6 +3,7 @@ import Citizen from "../citizen";
 import Administration from "../administration";
 import ApiRegistration from "../administration/pages/apis/ApiRegistration";
 import WorkflowCanvas from "../administration/pages/workflow/WorkflowCanvas";
+import WorkflowListPage from "../administration/pages/workflow/WorkflowListPage";
 
 export default function AppRoutes() {
   return <BrowserRouter><Routes>
@@ -26,7 +27,9 @@ export default function AppRoutes() {
     <Route path="/administration/orchestrations" element={<Administration page="orchestrations" />} />
     <Route path="/administration/orchestrations/new" element={<Administration page="orchestration-create" />} />
     <Route path="/administration/apis/register" element={<ApiRegistration />} />
-    <Route path="/administration/workflows" element={<WorkflowCanvas />} />
+    <Route path="/administration/workflows" element={<WorkflowListPage />} />
+    <Route path="/administration/workflows/new" element={<WorkflowCanvas />} />
+    <Route path="/administration/workflows/:workflowId" element={<WorkflowCanvas />} />
     {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
   </Routes></BrowserRouter>;
 }

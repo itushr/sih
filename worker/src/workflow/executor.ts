@@ -7,8 +7,18 @@ import {
     updateWorkflowStatus,
 } from "./repository.js";
 
+import { executeStart } from "../nodes/start.js";
 import { executeNotifyCitizen } from "../nodes/notifyCitizen.js";
+import { executePause } from "../nodes/pause.js";
+import { executeManualInput } from "../nodes/manualInput.js";
+import { executeRedirectWorkflow } from "../nodes/redirectWorkflow.js";
 import { executeEnd } from "../nodes/end.js";
+
+const WAITING_STATUSES = new Set([
+    "COMPLETE",
+    "PAUSED",
+    "WAITING_INPUT",
+]);
 
 export async function executeWorkflow(
     workflowId: string
@@ -22,9 +32,9 @@ export async function executeWorkflow(
         );
     }
 
-    if (workflow.status === "COMPLETE") {
+    if (WAITING_STATUSES.has(workflow.status)) {
         console.log(
-            `Workflow ${workflowId} already completed.`
+            `Workflow ${workflowId} is ${workflow.status}.`
         );
 
         return;
@@ -50,15 +60,56 @@ export async function executeWorkflow(
 
         try {
             switch (node.type) {
+                case "START":
+                    await executeStart(
+                        workflow,
+                        node
+                    );
+
+                    if (!await moveToNextNode(
+                        workflow,
+                        node.on_success
+                    )) {
+                        return;
+                    }
+
+                    break;
+
                 case "NOTIFY_CITIZEN":
                     await executeNotifyCitizen(
                         workflow,
                         node
                     );
 
-                    await moveToNextNode(
+                    if (!await moveToNextNode(
                         workflow,
                         node.on_success
+                    )) {
+                        return;
+                    }
+
+                    break;
+
+                case "PAUSE":
+                    await executePause(
+                        workflow,
+                        node
+                    );
+
+                    return;
+
+                case "MANUAL_INPUT":
+                    await executeManualInput(
+                        workflow,
+                        node
+                    );
+
+                    return;
+
+                case "REDIRECT_WORKFLOW":
+                    await executeRedirectWorkflow(
+                        workflow,
+                        node
                     );
 
                     break;
@@ -73,7 +124,9 @@ export async function executeWorkflow(
 
                 default:
                     throw new Error(
-                        `Unsupported node type: ${node.type}`
+                        `Unsupported node type: ${String(
+                            (node as { type: string }).type
+                        )}`
                     );
             }
         } catch (error) {
@@ -83,10 +136,15 @@ export async function executeWorkflow(
             );
 
             if (node.on_error) {
-                await moveToNextNode(
+                if (!await moveToNextNode(
                     workflow,
                     node.on_error
-                );
+                )) {
+                    return;
+                }
+
+                workflow =
+                    (await getRunningWorkflow(workflow.id))!;
 
                 continue;
             }
@@ -107,21 +165,34 @@ export async function executeWorkflow(
                 `Workflow ${workflowId} disappeared`
             );
         }
+
+        if (WAITING_STATUSES.has(workflow.status)) {
+            return;
+        }
     }
 }
 
 async function moveToNextNode(
     workflow: RunningWorkflow,
     nextNodeId: string | null
-): Promise<void> {
+): Promise<boolean> {
     if (!nextNodeId) {
-        throw new Error(
-            `Workflow ${workflow.id} has no next node`
+        console.log(
+            `Workflow ${workflow.id} reached end of execution.`
         );
+
+        await updateWorkflowStatus(
+            workflow.id,
+            "COMPLETE"
+        );
+
+        return false;
     }
 
     await updateCurrentNode(
         workflow.id,
         nextNodeId
     );
+
+    return true;
 }
