@@ -5,7 +5,7 @@ export const adminNavigation = [
   ["logs", "Errors & Logs", "04", "◉", "/administration/errors-logs"],
   ["events", "Event Registry", "05", "⌘", "/administration/event-registry"],
   ["subscriptions", "Subscriptions", "06", "▤", "/administration/subscriptions"],
-  ["orchestrations", "Orchestrations", "07", "⌗", "/administration/orchestrations"],
+  ["workflows", "Workflows", "07", "⌗", "/administration/workflows"],
 ];
 
 export const pageDetails = {
