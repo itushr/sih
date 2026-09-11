@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Citizen from "../citizen";
 import Administration from "../administration";
+import ApiRegistration from "../administration/pages/apis/ApiRegistration";
 import WorkflowCanvas from "../administration/pages/workflow/WorkflowCanvas";
 
 export default function AppRoutes() {
@@ -24,6 +25,7 @@ export default function AppRoutes() {
     <Route path="/administration/subscriptions/:subscriptionId" element={<Administration page="subscription-detail" />} />
     <Route path="/administration/orchestrations" element={<Administration page="orchestrations" />} />
     <Route path="/administration/orchestrations/new" element={<Administration page="orchestration-create" />} />
+    <Route path="/administration/apis/register" element={<ApiRegistration />} />
     <Route path="/administration/workflows" element={<WorkflowCanvas />} />
     {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
   </Routes></BrowserRouter>;
