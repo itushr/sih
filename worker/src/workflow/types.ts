@@ -1,17 +1,15 @@
 export type WorkflowNodeType =
     | "START"
     | "NOTIFY_CITIZEN"
-    | "FETCH_API"
-    | "PAUSE"
-    | "RESUME"
     | "MANUAL_INPUT"
-    | "CONDITIONAL_ROUTING"
-    | "REDIRECT"
-    | "ATTACH_DATA"
+    | "PAUSE"
+    | "REDIRECT_WORKFLOW"
     | "END";
 
 export type WorkflowRunStatus =
     | "PENDING"
+    | "PAUSED"
+    | "WAITING_INPUT"
     | "COMPLETE"
     | "ERROR";
 
@@ -30,4 +28,10 @@ export interface RunningWorkflow {
     start: string;
     current: string;
     status: WorkflowRunStatus;
+}
+
+export interface WorkflowDefinition {
+    id: string;
+    name: string;
+    start: string | null;
 }

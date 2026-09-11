@@ -1,10 +1,26 @@
-import { useState } from "react"
-import { Plus, RobotArmIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ChevronLeft, FlaskConical, MoveLeft, Plus, Save } from "lucide-react"
 import { Tree, TreeNode } from "react-organizational-chart"
+import { useNavigate, useParams } from "react-router-dom"
 
 import AdministrationLayout2 from "../../layout/AdministrationLayout2"
 import NodeTypePopup from "./NodeTypePopup"
 import NodeConfigPopup from "./NodeConfigPopup"
+import {
+    createWorkflow,
+    getWorkflow,
+    runWorkflow,
+    updateWorkflow,
+} from "./workflowApi"
+import {
+    buildWorkflowTree,
+    createStartNode,
+    deleteNode,
+    flattenWorkflowTree,
+    getNodeDisplayName,
+    insertNode,
+    updateNode,
+} from "./workflowTree"
 
 const NODE_TYPES = {
     START: "START",
@@ -13,13 +29,18 @@ const NODE_TYPES = {
     ADD: "ADD",
 }
 
-const createNode = (type) => ({
-    id: crypto.randomUUID(),
-    type,
-    name: type,
-    success: null,
-    error: null,
-})
+const createNode = (type) => {
+    const node = {
+        id: crypto.randomUUID(),
+        type,
+        name: type,
+        payload: {},
+        success: null,
+        error: null,
+    }
+    node.name = getNodeDisplayName(node)
+    return node
+}
 
 const WorkflowNode = ({ type, name, onClick }) => {
     return (
@@ -34,7 +55,7 @@ const WorkflowNode = ({ type, name, onClick }) => {
                     onClick={onClick}
                     className="
                         uppercase
-                        text-xs
+                        text-sm!
                         bg-[#2a4b41]
                         text-white
                         pl-4
@@ -49,7 +70,6 @@ const WorkflowNode = ({ type, name, onClick }) => {
                         transition
                     "
                 >
-                    <RobotArmIcon size={15} />
                     {name}
                 </button>
             )}
@@ -100,48 +120,75 @@ const AddNode = ({ onClick }) => {
 
 export default function Page() {
     return (
-        <AdministrationLayout2>
+        <AdministrationLayout2 page="workflows">
             <WorkflowCanvas />
         </AdministrationLayout2>
     )
 }
 
 function WorkflowCanvas() {
-    const [workflow, setWorkflow] = useState({
-        id: "start",
-        type: NODE_TYPES.START,
-        name: "Start",
-        success: null,
-        error: null,
-    })
+    const navigate = useNavigate()
+    const { workflowId } = useParams()
+    const isNew = !workflowId || workflowId === "new"
 
-    const [nodeTypePopupOpen, setNodeTypePopupOpen] =
-        useState(false)
+    const [name, setName] = useState("Untitled workflow")
+    const [description, setDescription] = useState("")
+    const [savedId, setSavedId] = useState(isNew ? null : workflowId)
+    const [workflow, setWorkflow] = useState(createStartNode())
+    const [loading, setLoading] = useState(!isNew)
+    const [saving, setSaving] = useState(false)
+    const [running, setRunning] = useState(false)
+    const [status, setStatus] = useState("")
+    const [error, setError] = useState("")
+    const [runOpen, setRunOpen] = useState(false)
+    const [runData, setRunData] = useState('{\n  "citizen": ""\n}')
 
-    const [configPopupOpen, setConfigPopupOpen] =
-        useState(false)
+    const [nodeTypePopupOpen, setNodeTypePopupOpen] = useState(false)
+    const [configPopupOpen, setConfigPopupOpen] = useState(false)
+    const [pendingNodeId, setPendingNodeId] = useState(null)
+    const [pendingBranch, setPendingBranch] = useState(null)
+    const [selectedNode, setSelectedNode] = useState(null)
 
-    const [pendingNodeId, setPendingNodeId] =
-        useState(null)
+    useEffect(() => {
+        if (isNew) {
+            return
+        }
 
-    const [pendingBranch, setPendingBranch] =
-        useState(null)
+        let cancelled = false
 
-    const [selectedNode, setSelectedNode] =
-        useState(null)
+        getWorkflow(workflowId)
+            .then((data) => {
+                if (cancelled) {
+                    return
+                }
 
-    /*
-     * Open "Select node type"
-     */
+                setName(data.name)
+                setDescription(data.description || "")
+                setSavedId(data.id)
+                setWorkflow(buildWorkflowTree(data.nodes, data.start))
+            })
+            .catch((cause) => {
+                if (!cancelled) {
+                    setError(cause.message)
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setLoading(false)
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [isNew, workflowId])
+
     const openAddNode = (nodeId, branch) => {
         setPendingNodeId(nodeId)
         setPendingBranch(branch)
         setNodeTypePopupOpen(true)
     }
 
-    /*
-     * Select node type
-     */
     const addNode = (type) => {
         const newNode = createNode(type)
 
@@ -154,42 +201,170 @@ function WorkflowCanvas() {
             )
         )
 
-        /*
-         * Immediately open configuration popup
-         * for the newly created node.
-         */
         setSelectedNode(newNode)
         setConfigPopupOpen(true)
-
         setNodeTypePopupOpen(false)
         setPendingNodeId(null)
         setPendingBranch(null)
     }
 
-    /*
-     * Click an existing node
-     */
     const openNodeConfig = (node) => {
         setSelectedNode(node)
         setConfigPopupOpen(true)
     }
 
-    /*
-     * Close configuration popup
-     */
-    const closeNodeConfig = () => {
+    const saveNodeConfig = (payload) => {
+        if (!selectedNode) {
+            return
+        }
+
+        setWorkflow((current) =>
+            updateNode(current, selectedNode.id, { payload })
+        )
         setConfigPopupOpen(false)
         setSelectedNode(null)
     }
 
+    const deleteSelectedNode = () => {
+        if (!selectedNode || selectedNode.type === "START") {
+            return
+        }
+        setWorkflow((current) => deleteNode(current, selectedNode.id))
+        setConfigPopupOpen(false)
+        setSelectedNode(null)
+    }
+
+    const persist = async ({ stay } = {}) => {
+        setSaving(true)
+        setError("")
+        setStatus("")
+
+        const payload = {
+            name,
+            description,
+            start: workflow.id,
+            nodes: flattenWorkflowTree(workflow),
+        }
+
+        try {
+            const saved = savedId
+                ? await updateWorkflow(savedId, payload)
+                : await createWorkflow(payload)
+
+            setSavedId(saved.id)
+            setStatus("Workflow saved.")
+
+            if (isNew && !stay) {
+                navigate(`/administration/workflows/${saved.id}`, {
+                    replace: true,
+                })
+            }
+
+            return saved
+        } catch (cause) {
+            setError(cause.message)
+            return null
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const startRun = async () => {
+        setRunning(true)
+        setError("")
+        setStatus("")
+
+        try {
+            const saved = await persist({ stay: true })
+
+            if (saved && isNew) {
+                navigate(`/administration/workflows/${saved.id}`, {
+                    replace: true,
+                })
+            }
+
+            if (!saved) {
+                return
+            }
+
+            let data = {}
+
+            try {
+                data = JSON.parse(runData)
+            } catch {
+                setError("Run data must be valid JSON.")
+                return
+            }
+
+            const runningWorkflow = await runWorkflow(saved.id, data)
+            setRunOpen(false)
+            setStatus(`Run started: ${runningWorkflow.id}`)
+        } catch (cause) {
+            setError(cause.message)
+        } finally {
+            setRunning(false)
+        }
+    }
+
     return (
-        <div className="h-full w-full overflow-auto bg-background p-10">
-            <div className="flex min-w-max justify-center">
-                <WorkflowTree
-                    node={workflow}
-                    onAdd={openAddNode}
-                    onNodeClick={openNodeConfig}
+        <div className="h-full w-full overflow-auto bg-background">
+            <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-[#dfe7df] px-6 py-2">
+                <div
+                    className="text-xs flex gap-1 cursor-pointer hover:opacity-70"
+                    type="button"
+                    onClick={() => navigate("/administration/workflows")}
+                >
+                    <MoveLeft size={15} />
+                </div>
+                <input
+                    className="bg-transparent! border-none! py-1! flex-1 px-1! focus:outline-1!"
+                    placeholder="Untitled Workflow"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
                 />
+                {/* <input
+                    className="min-w-72 flex-2 rounded-md border border-[#dfe7df] bg-white px-3 py-2 text-sm"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Description"
+                /> */}
+                <button
+                    className="flex items-center gap-1 px-2 py-1 uppercase rounded-md border text-xs! cursor-pointer"
+                    type="button"
+                    onClick={persist}
+                    disabled={saving}
+                >
+                    <Save size={13} />
+                    {saving ? "saving…" : "save"}
+                </button>
+                <button
+                    className="flex items-center gap-1 px-2 py-1 uppercase rounded-md border text-xs! cursor-pointer"
+                    type="button"
+                    onClick={() => setRunOpen(true)}
+                    disabled={running}
+                >
+                    <FlaskConical size={13} />
+                    Test
+                </button>
+            </div>
+
+            {(error || status) && (
+                <div className="px-6 pt-4 text-sm">
+                    {error && <p className="text-red-700">{error}</p>}
+                    {status && <p className="text-emerald-700">{status}</p>}
+                </div>
+            )}
+
+            <div className="flex min-w-max justify-center p-10">
+                {loading ? (
+                    <p className="text-sm text-[#637c6c]">Loading workflow…</p>
+                ) : (
+                    <WorkflowTree
+                        node={workflow}
+                        onAdd={openAddNode}
+                        onNodeClick={openNodeConfig}
+                    />
+                )}
             </div>
 
             {nodeTypePopupOpen && (
@@ -206,8 +381,47 @@ function WorkflowCanvas() {
             {configPopupOpen && selectedNode && (
                 <NodeConfigPopup
                     node={selectedNode}
-                    onClose={closeNodeConfig}
+                    currentWorkflowId={savedId}
+                    onSave={saveNodeConfig}
+                    onDelete={selectedNode.type !== "START" ? deleteSelectedNode : null}
+                    onClose={() => {
+                        setConfigPopupOpen(false)
+                        setSelectedNode(null)
+                    }}
                 />
+            )}
+
+            {runOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+                    <div className="w-105 rounded-xl border border-border bg-slate-200 p-5 shadow-xl">
+                        <h2 className="mb-3 text-sm font-semibold">Start workflow run</h2>
+                        <p className="mb-3 text-xs">
+                            Initial run data. NOTIFY_CITIZEN needs a <code>citizen</code> id.
+                        </p>
+                        <textarea
+                            className="mb-4 h-40 w-full rounded-md border border-slate-300 bg-white p-2 font-mono text-xs"
+                            value={runData}
+                            onChange={(event) => setRunData(event.target.value)}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button
+                                className="outline-button"
+                                type="button"
+                                onClick={() => setRunOpen(false)}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                className="solid-button compact"
+                                type="button"
+                                onClick={startRun}
+                                disabled={running}
+                            >
+                                {running ? "Starting…" : "Start run"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )
@@ -286,44 +500,4 @@ const WorkflowTree = ({
             </WorkflowBranch>
         </Tree>
     )
-}
-
-const insertNode = (
-    node,
-    targetNodeId,
-    branch,
-    newNode
-) => {
-    if (!node) {
-        return null
-    }
-
-    if (node.id === targetNodeId) {
-        return {
-            ...node,
-            [branch]: newNode,
-        }
-    }
-
-    return {
-        ...node,
-
-        success: node.success
-            ? insertNode(
-                node.success,
-                targetNodeId,
-                branch,
-                newNode
-            )
-            : null,
-
-        error: node.error
-            ? insertNode(
-                node.error,
-                targetNodeId,
-                branch,
-                newNode
-            )
-            : null,
-    }
 }
